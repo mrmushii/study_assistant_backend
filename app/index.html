@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Study Assistant</title>
+    <!-- Modern Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: rgba(30, 41, 59, 0.7);
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.4);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            background-image: radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.15), transparent 25%),
+                              radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.15), transparent 25%);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            margin: 50px 20px;
+            padding: 40px;
+            background: var(--surface);
+            backdrop-filter: blur(16px);
+            border-radius: 24px;
+            border: 1px solid var(--border);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            margin-top: 0;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p {
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        /* Upload Area */
+        .upload-area {
+            border: 2px dashed var(--border);
+            border-radius: 16px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 30px;
+            background: rgba(15, 23, 42, 0.3);
+        }
+        
+        .upload-area:hover, .upload-area.dragover {
+            border-color: var(--primary);
+            background: rgba(59, 130, 246, 0.05);
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+
+        #file-input { display: none; }
+
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 14px var(--primary-glow);
+            margin-top: 15px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            background-color: #2563eb;
+        }
+        
+        .btn:disabled {
+            background-color: #475569;
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Progress UI */
+        #progress-container {
+            display: none;
+            margin-top: 40px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .status-text {
+            font-weight: 500;
+            color: #60a5fa;
+            animation: pulse 2s infinite ease-in-out;
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
+        }
+
+        .progress-track {
+            height: 10px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            border-radius: 10px;
+            transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+        }
+        
+        .progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            transform: translateX(-100%);
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            100% { transform: translateX(100%); }
+        }
+
+        /* Results UI */
+        #results-container {
+            display: none;
+            margin-top: 40px;
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .result-card {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .result-card h3 {
+            margin-top: 0;
+            color: #a78bfa;
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+        }
+        
+        .result-card ul {
+            padding-left: 20px;
+            margin: 0;
+        }
+        
+        .result-card li {
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>AI Study Assistant</h1>
+        <p>Upload handwritten or printed course material (engineering, math, physics). The local AI will extract, repair, and explain the content.</p>
+
+        <div class="upload-area" id="drop-zone" onclick="document.getElementById('file-input').click()">
+            <input type="file" id="file-input" accept="image/*">
+            <svg style="width:48px;height:48px;color:#3b82f6;margin-bottom:15px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <h3 style="margin:0; font-weight:500;">Click to upload an image</h3>
+            <p style="font-size:0.9rem; margin-top:5px;">or drag and drop here</p>
+        </div>
+
+        <!-- The Button usually hidden until file is picked -->
+        <div style="text-align: center;">
+            <button class="btn" id="analyze-btn" style="display:none;">Analyze Document</button>
+        </div>
+
+        <div id="progress-container">
+            <div class="progress-header">
+                <span class="status-text" id="status-msg">Initializing AI...</span>
+                <span style="font-weight:bold; color:white;" id="progress-pct">0%</span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            <div class="stats-row">
+                <span id="speed-msg">Speed: -- Tok/s</span>
+                <span id="eta-msg">ETA: -- sec</span>
+            </div>
+        </div>
+
+        <div id="results-container">
+            <div class="result-card">
+                <h3>📌 Explanation (Bangla & English)</h3>
+                <div id="res-explanation" style="line-height: 1.7;"></div>
+            </div>
+            <div class="result-card">
+                <h3>📝 Summary</h3>
+                <div id="res-summary" style="line-height: 1.7;"></div>
+            </div>
+            <div class="result-card">
+                <h3>🔑 Key Points</h3>
+                <ul id="res-key-points"></ul>
+            </div>
+            <div class="result-card">
+                <h3>❓ Practice Questions</h3>
+                <ul id="res-questions"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const analyzeBtn = document.getElementById('analyze-btn');
+        let selectedFile = null;
+
+        // Drag and drop handlers
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Please select an image file.');
+                return;
+            }
+            selectedFile = file;
+            dropZone.querySelector('h3').innerText = file.name;
+            dropZone.querySelector('p').innerText = "Ready to process!";
+            analyzeBtn.style.display = 'inline-block';
+            document.getElementById('results-container').style.display = 'none';
+        }
+
+        analyzeBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            // UI Reset
+            analyzeBtn.disabled = true;
+            analyzeBtn.innerText = "Analyzing...";
+            document.getElementById('progress-container').style.display = 'block';
+            document.getElementById('results-container').style.display = 'none';
+            
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                // We use Fetch with the ReadableStream API to parse standard SSE formatting line-by-line
+                const response = await fetch('/process-file', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '';
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    
+                    // Parse Server-Sent Events line by line
+                    let lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep the last incomplete line in buffer
+
+                    for (let line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const jsonStr = line.replace('data: ', '').trim();
+                            if (jsonStr) {
+                                const data = JSON.parse(jsonStr);
+                                updateProgress(data);
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                alert("Error connecting to server: " + err.message);
+                updateProgress({status: 'error', message: 'Failed to process.'});
+            } finally {
+                analyzeBtn.disabled = false;
+                analyzeBtn.innerText = "Analyze New Document";
+            }
+        });
+
+        function updateProgress(data) {
+            const bar = document.getElementById('progress-bar');
+            const pct = document.getElementById('progress-pct');
+            const msg = document.getElementById('status-msg');
+            const speed = document.getElementById('speed-msg');
+            const eta = document.getElementById('eta-msg');
+
+            if (data.status === 'error') {
+                msg.innerText = "Error: " + data.message;
+                msg.style.color = "#ef4444";
+                bar.style.background = "#ef4444";
+                return;
+            }
+
+            if (data.progress) {
+                bar.style.width = data.progress + '%';
+                pct.innerText = data.progress + '%';
+            }
+
+            if (data.message) {
+                msg.innerText = data.message;
+            }
+
+            if (data.tokens_per_second !== undefined) {
+                speed.innerText = `Speed: ${data.tokens_per_second} TPS`;
+            }
+            if (data.eta_seconds !== undefined) {
+                eta.innerText = `ETA: ${data.eta_seconds}s`;
+            }
+
+            if (data.status === 'complete' && data.data) {
+                document.getElementById('progress-container').style.display = 'none';
+                renderResults(data.data);
+            }
+        }
+
+        function renderResults(data) {
+            document.getElementById('res-explanation').innerText = data.explanation || "";
+            document.getElementById('res-summary').innerText = data.summary || "";
+            
+            const kpList = document.getElementById('res-key-points');
+            kpList.innerHTML = '';
+            (data.key_points || []).forEach(kp => {
+                let li = document.createElement('li');
+                li.innerText = kp;
+                kpList.appendChild(li);
+            });
+
+            const qList = document.getElementById('res-questions');
+            qList.innerHTML = '';
+            (data.questions || []).forEach(q => {
+                let li = document.createElement('li');
+                li.innerText = q;
+                qList.appendChild(li);
+            });
+
+            document.getElementById('results-container').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
