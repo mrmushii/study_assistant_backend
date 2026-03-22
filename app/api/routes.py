@@ -1,17 +1,19 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi.responses import StreamingResponse
 import logging
-from app.models.schemas import ProcessResponse
-from app.services.ai_service import generate_study_content_from_image
+import json
+from app.services.ai_service import generate_study_content_stream
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-@router.post("/process-file", response_model=ProcessResponse)
+@router.post("/process-file")
 async def process_file(file: UploadFile = File(...)):
     """
     POST /process-file
-    Accepts an image file and routes it directly to the local Vision LLM 
-    to extract text, understand handwriting, and generate study content.
+    Accepts an image file and routes it directly to the local Vision LLM.
+    Returns a Server-Sent Events (SSE) stream allowing the frontend to show 
+    dynamic progress (TPS, ETA, %) before finally sending the extracted data.
     """
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Only image files are supported.")
@@ -19,21 +21,27 @@ async def process_file(file: UploadFile = File(...)):
     try:
         # Step 1: Read the raw image bytes
         image_bytes = await file.read()
-        
-        # Step 2: Use Vision LLM to immediately extract and structure knowledge
-        final_data = generate_study_content_from_image(image_bytes)
-        
-        return ProcessResponse(**final_data)
-        
-    except ValueError as ve:
-        # Expected errors like Invalid Image or parse failure
-        logger.warning(f"Validation error in process_file: {str(ve)}")
-        raise HTTPException(status_code=400, detail=str(ve))
-    except RuntimeError as re:
-        # Errors from Ollama offline or failing
-        logger.error(f"Runtime generation error: {str(re)}")
-        raise HTTPException(status_code=500, detail="Internal AI processing error. Please check logs.")
     except Exception as e:
-        logger.error(f"Unexpected error matching process_file end-to-end: {str(e)}")
-        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
+        logger.error(f"Failed to read file: {e}")
+        raise HTTPException(status_code=400, detail="Failed to read uploaded file.")
+        
+    async def event_generator():
+        try:
+            # Step 2: Use Vision LLM async generator to stream dynamic progress
+            async for event_data in generate_study_content_stream(image_bytes):
+                # Yield in valid Server-Sent-Events format
+                yield f"data: {json.dumps(event_data)}\n\n"
+                
+        except ValueError as ve:
+            logger.warning(f"Validation error in process_file stream: {str(ve)}")
+            yield f"data: {json.dumps({'status': 'error', 'message': str(ve)})}\n\n"
+        except RuntimeError as re:
+            logger.error(f"Runtime generation error: {str(re)}")
+            yield f"data: {json.dumps({'status': 'error', 'message': 'Internal AI processing error. Please check logs.'})}\n\n"
+        except Exception as e:
+            logger.error(f"Unexpected error matching process_file stream: {str(e)}")
+            yield f"data: {json.dumps({'status': 'error', 'message': 'An unexpected error occurred.'})}\n\n"
+
+    # Return the streaming response instead of a static JSON response
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
