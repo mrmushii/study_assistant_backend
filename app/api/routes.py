@@ -1,9 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 import logging
 from app.models.schemas import ProcessResponse
-from app.services.ocr_service import extract_text
-from app.services.text_cleaner import clean_ocr_text
-from app.services.ai_service import generate_study_content
+from app.services.ai_service import generate_study_content_from_image
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -12,34 +10,29 @@ router = APIRouter()
 async def process_file(file: UploadFile = File(...)):
     """
     POST /process-file
-    Accepts an image file, runs OCR, cleans text, and returns AI-generated study content.
+    Accepts an image file and routes it directly to the local Vision LLM 
+    to extract text, understand handwriting, and generate study content.
     """
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Only image files are supported.")
 
     try:
-        # Step 1: Read the image bytes
+        # Step 1: Read the raw image bytes
         image_bytes = await file.read()
         
-        # Step 2: Extract raw text via Tesseract (OCR)
-        raw_text = extract_text(image_bytes)
-        
-        # Step 3: Clean the recognized text (Fix Bangla, Banglish -> Bangla) via LLM
-        cleaned_text = clean_ocr_text(raw_text)
-        
-        # Step 4: Generate explanations, summaries, and questions
-        final_data = generate_study_content(cleaned_text)
+        # Step 2: Use Vision LLM to immediately extract and structure knowledge
+        final_data = generate_study_content_from_image(image_bytes)
         
         return ProcessResponse(**final_data)
         
     except ValueError as ve:
-        # Expected errors like Invalid Image, or AI output failing schema parse
+        # Expected errors like Invalid Image or parse failure
         logger.warning(f"Validation error in process_file: {str(ve)}")
         raise HTTPException(status_code=400, detail=str(ve))
     except RuntimeError as re:
-        # Errors from dependencies like Tesseract missing or Ollama offline
-        logger.error(f"Runtime extraction error: {str(re)}")
-        raise HTTPException(status_code=500, detail="Internal processing error. Please check logs.")
+        # Errors from Ollama offline or failing
+        logger.error(f"Runtime generation error: {str(re)}")
+        raise HTTPException(status_code=500, detail="Internal AI processing error. Please check logs.")
     except Exception as e:
         logger.error(f"Unexpected error matching process_file end-to-end: {str(e)}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
