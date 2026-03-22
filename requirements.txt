@@ -8,9 +8,9 @@ python-multipart>=0.0.9
 # Data validation
 pydantic>=2.7.0
 
-# OCR (Step 2-3) — will add pytesseract + Pillow
-# pytesseract==0.3.10
-# Pillow==10.2.0
+# OCR (Step 2-3)
+pytesseract>=0.3.10
+Pillow>=10.2.0
 
 # AI (Step 5) — will add ollama client
 # ollama==0.1.6
