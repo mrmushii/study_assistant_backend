@@ -14,6 +14,30 @@ _client = AsyncClient(host=_OLLAMA_URL)
 
 logger = logging.getLogger(__name__)
 
+TEXT_PROMPT_TEMPLATE = """You are an expert tutor for a university student in Bangladesh.
+Your goal is to explain the handwritten or printed study material provided as text below clearly and simply.
+
+STUDY MATERIAL TEXT:
+{text}
+
+Please analyze the text and provide:
+1. An explanation (Explain simply using a mix of Bangla and English)
+2. A summary (A short overview of the entire text)
+3. Key points (Extract the most important technical or conceptual points)
+4. 5 questions (Generate exactly 5 questions to test the student's understanding)
+
+OUTPUT INSTRUCTIONS:
+You MUST respond with valid raw JSON only. Do not include markdown code blocks (like ```json).
+Do not include any greeting or conversational text before or after the JSON.
+Your JSON must exactly match this structure:
+{{
+    "explanation": "Your explanation here (Bangla + English mix)",
+    "summary": "Your summary here",
+    "key_points": ["Point 1", "Point 2", "Point 3"],
+    "questions": ["Question 1", "Question 2", "Question 3", "Question 4", "Question 5"]
+}}
+"""
+
 VISION_PROMPT_TEMPLATE = """You are an expert tutor for a university student in Bangladesh.
 Your goal is to explain the handwritten or printed study material shown in this image clearly and simply.
 
@@ -35,29 +59,37 @@ Your JSON must exactly match this structure:
 }}
 """
 
-async def generate_study_content_stream(image_bytes: bytes):
+async def generate_study_content_stream(text: str = None, images: list = None):
     """
-    Async generator that calls the local Ollama Vision LLM with stream=True.
-    Yields progress tracking events before finally yielding the JSON data.
+    Async generator that calls the local Ollama LLM with stream=True.
+    Supports either pure text processing or image processing.
     """
-    if not image_bytes:
-        yield {"status": "error", "message": "No image received."}
+    if not text and not images:
+        yield {"status": "error", "message": "No text or image received."}
         return
 
-    yield {"status": "starting", "progress": 5, "message": "Initializing AI Vision analysis..."}
+    yield {"status": "starting", "progress": 5, "message": "Initializing AI analysis..."}
     
     try:
         start_time = time.time()
         
-        response_stream = await _client.generate(
-            model=_OLLAMA_MODEL,
-            prompt=VISION_PROMPT_TEMPLATE,
-            images=[image_bytes],
-            format="json",
-            stream=True
-        )
+        if text:
+            response_stream = await _client.generate(
+                model=_OLLAMA_MODEL,
+                prompt=TEXT_PROMPT_TEMPLATE.format(text=text),
+                format="json",
+                stream=True
+            )
+        else:
+            response_stream = await _client.generate(
+                model=_OLLAMA_MODEL,
+                prompt=VISION_PROMPT_TEMPLATE,
+                images=images,
+                format="json",
+                stream=True
+            )
         
-        yield {"status": "processing", "progress": 10, "message": "Reading image and drafting response..."}
+        yield {"status": "processing", "progress": 10, "message": "Analyzing content and drafting response..."}
         
         full_text = ""
         token_count = 0
@@ -101,7 +133,7 @@ async def generate_study_content_stream(image_bytes: bytes):
         }
         
     except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse LLM JSON from vision: {e}")
+        logger.error(f"Failed to parse LLM JSON: {e}")
         yield {"status": "error", "message": "AI produced invalid JSON output. Please try again."}
     except Exception as e:
         logger.error(f"Ollama generation failed: {e}")

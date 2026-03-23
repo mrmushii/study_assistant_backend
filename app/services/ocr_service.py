@@ -2,6 +2,7 @@ import os
 import pytesseract
 from PIL import Image, UnidentifiedImageError
 import io
+import fitz  # PyMuPDF
 
 # Read Tesseract binary path from environment variable.
 # Falls back to the default Windows install path if not set.
@@ -51,4 +52,32 @@ def extract_text(image_bytes: bytes) -> str:
             "Check TESSERACT_CMD in your .env file."
         )
 
+    return text.strip()
+
+def extract_text_from_file(file_bytes: bytes, content_type: str) -> str:
+    """
+    Extract text handling both PDFs and Images.
+    If PDF, tries to extract text natively using PyMuPDF. If the page lacks text
+    (e.g., scanned PDF), renders the page to an image and uses Tesseract OCR.
+    """
+    text = ""
+    if content_type == "application/pdf":
+        try:
+            doc = fitz.open(stream=file_bytes, filetype="pdf")
+            for page in doc:
+                page_text = page.get_text()
+                if len(page_text.strip()) > 50:
+                    text += page_text + "\n"
+                else:
+                    # Render page to image and OCR
+                    pix = page.get_pixmap()
+                    img_bytes = pix.tobytes("png")
+                    text += extract_text(img_bytes) + "\n"
+        except Exception as e:
+            raise ValueError(f"Failed to process PDF: {e}")
+    elif content_type.startswith("image/"):
+        text = extract_text(file_bytes)
+    else:
+        raise ValueError("Unsupported file type.")
+    
     return text.strip()
